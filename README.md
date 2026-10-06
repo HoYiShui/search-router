@@ -1,4 +1,4 @@
-# searchgate
+# search-router
 
 一个精简的搜索 API 智能网关：聚合多个 Search API（Serper / Tavily / Brave / …），对外暴露统一接口，根据各 provider 的**配额（quota）**与**限速（QPS/RPM）**自动做负载均衡与**主动分流**。
 
