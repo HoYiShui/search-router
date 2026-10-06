@@ -11,7 +11,13 @@
 
 ## 状态
 
-**设计阶段** —— 尚未写代码。架构设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+**设计阶段** —— 尚未写代码。设计文档见 `docs/`，由粗到细：
+
+- [`architecture.md`](docs/architecture.md) —— 模块与依赖朝向
+- [`dataflow.md`](docs/dataflow.md) —— 数据流与状态变化
+- [`data-model.md`](docs/data-model.md) —— 实体、字段与约束
+- [`api-contract.md`](docs/api-contract.md) —— 接口契约（最细）
+- [`operation.md`](docs/operation.md) —— 出错处理与降级（横切）
 
 ## 参考
 
