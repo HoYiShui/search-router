@@ -67,6 +67,8 @@ routing:
 
 **split（缺省）**：低并发下自然退化为「轮询 / 首选最高权重」，无副作用，故个人与产品场景可共用。
 
+> SWRR 作用域：只对「当前有资格的 provider」加权轮询；掉出候选的 provider 不参与本轮、其累计权重保留（重新有资格时继续）。
+
 ```
 每个请求：
   1. candidates = 启用 且 breaker.Allow() 且 pool.HasCapacity() 且 满足硬能力

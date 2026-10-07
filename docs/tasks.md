@@ -36,14 +36,14 @@
 
 - **输入**：`data-model.md` 配置实体、`architecture.md` 核心决策
 - **产出**：`internal/config/config.go`
-- **内容**：`Load(path string) (*model.Config, error)` 读 yaml；路径来自 env `SEARCH_ROUTER_CONFIG`（缺省 `./config.yaml`）；校验 `qps > 0`；填缺省（`weight=1`、`priority=99`、`maxKeyAttempts=3`、`mode="split"`）
+- **内容**：`Load(path string) (*model.Config, error)` 读 yaml；路径来自 env `SEARCH_ROUTER_CONFIG`（缺省 `./config.yaml`）；校验 `qps>0`、`mode∈{split,failover}`、`contentType∈{abstract,body}`、`weight≥0`、`priority≥0`；填缺省（`weight=1`、`priority=99`、`maxKeyAttempts=3`、`mode="split"`）
 - **完成**：非法配置（如 qps=0）报错；缺省值正确
 
 ## T3 `breaker` 包
 
 - **输入**：`operation.md` 熔断状态机、`api-contract.md` breaker 契约
 - **产出**：`internal/breaker/breaker.go`
-- **内容**：`Breaker{ Allow / RecordSuccess / RecordFailure }`；状态机 `closed → open → half-open → closed`；阈值与冷却时长可配；`sync.Mutex` 保护
+- **内容**：`Breaker{ Allow / RecordSuccess / RecordFailure }` + `BreakerOptions{Threshold=3, Cooldown=5m}`；状态机 `closed → open → half-open → closed`；`sync.Mutex` 保护；`Allow()` 返回 false 时调用方记 `Attempt{Code:"circuit_open"}`
 - **验收**：**A6**（连续失败≥阈值→open；冷却→half-open；探测成功→closed）
 - **完成**：注入假时钟驱动状态机，断言 `Allow()` 在各状态的返回值
 
@@ -51,7 +51,7 @@
 
 - **输入**：`operation.md` key 状态机 + 配额 reset、`data-model.md` `KeyRuntime`、`api-contract.md` Pool 契约
 - **产出**：`internal/keypool/pool.go`
-- **内容**：`Pool{ Acquire / ReportSuccess / ReportFailure / HasCapacity }` + `ErrNoKeyAvailable`；轮询 + 令牌桶(QPS) + 日/月/总配额；key 状态机（429→cooling、401/403→quarantined **永久**、日/月配额→quarantined 到边界回 active、总配额→**永久**）；惰性 reset（UTC 日/月戳）；`sync.Mutex` 保护
+- **内容**：`Pool{ Acquire / ReportSuccess / ReportFailure / HasCapacity }` + `ErrNoKeyAvailable` + `PoolOptions{RateLimitCooldown=1s}`；轮询 + 令牌桶(QPS) + 日/月/总配额；key 状态机（429→cooling、401/403→quarantined **永久**、日/月配额→quarantined 到边界回 active、总配额→**永久**）；配额两层（本地 `refresh` 主动判 + 上游 `ReportFailure` 被动判）；惰性 reset（UTC 日/月戳）；`sync.Mutex` 保护；`Acquire` 抛 `ErrNoKeyAvailable` 时调用方记 `Attempt{Code:"no_key_available"}`
 - **验收**：**A2**（HasCapacity）、**A7**（状态机）、**A8**（配额 reset）
 - **完成**：可控时钟下单测覆盖全部状态转移与 reset 边界
 
@@ -59,7 +59,7 @@
 
 - **输入**：`api-contract.md` 上游接口、`data-model.md` `SearchResult`
 - **产出**：`internal/providers/provider.go`（接口）+ `serper.go` / `tavily.go` / `brave.go`
-- **内容**：`Provider{ ID / Search / Capabilities / ContentType }` 接口；三个 adapter 按上游契约实现（endpoint / 鉴权头 / 请求映射 / 响应→`SearchResult` 翻译）；错误归类为 `*model.ProviderError`
+- **内容**：`Provider{ ID / Search / Capabilities / ContentType }` 接口；三个 adapter 按上游契约实现（endpoint / 鉴权头 / 请求映射 / 响应→`SearchResult` 翻译）；错误归类为 `*model.ProviderError`（上游配额错误归类 `KindKeyQuotaExhausted`）
 - **验收**：**A10**（归一化正确）
 - **完成**：每 provider 一份样本响应，断言字段映射 + `contentType` 正确；实现时对照各 provider 官方文档核对
 
@@ -67,7 +67,7 @@
 
 - **输入**：`dataflow.md` §2、`api-contract.md` Router 契约
 - **产出**：`internal/router/router.go`、`internal/router/swrr.go`
-- **内容**：平滑加权轮询(SWRR)；`ProviderEntry{Config, Adapter, Pool, Breaker}`；eligibility 过滤（启用 + 熔断未开 + `HasCapacity` + 硬能力 `content`）；split / failover 两种模式；内层 `MaxKeyAttempts` 有界循环；key 级故障耗尽**不**记熔断
+- **内容**：平滑加权轮询(SWRR，作用域=当前有资格 provider，掉出候选不参与本轮、计数保留)；`ProviderEntry{Config, Adapter, Pool, Breaker}`；eligibility 过滤（启用 + 熔断未开 + `HasCapacity` + 硬能力 `content`）；split / failover 两种模式；内层 `MaxKeyAttempts` 有界循环；key 级故障耗尽**不**记熔断；**timeout**：`context.WithTimeout(ctx, entry.Config.Timeout)` 包裹 `adapter.Search`；**Meta 构造**：计算 `IgnoredParams`、填充 `Degraded`/`SwitchedFrom`（跨 provider 才填）、记录 `Attempts`
 - **验收**：**A1**（weight 分布）、**A2**（资格过滤）、**A3**（硬能力）、**A4**（换 key ≤ 上限）、**A5**（换 provider / badRequest 不重试）
 - **完成**：mock adapter 单测覆盖路由选择、降级路径、`Attempt` 记录
 
@@ -82,7 +82,7 @@
 ## T8 `main` 组装
 
 - **产出**：`cmd/search-router/main.go`
-- **内容**：`config.Load` → 构造 adapter/pool/breaker → 组装 `[]ProviderEntry` → `NewRouter` → `NewHandler` → `http.ListenAndServe`
+- **内容**：`config.Load` → 构造 adapter/pool/breaker → 组装 `[]ProviderEntry` → `NewRouter(entries, cfg.Routing.Mode)` → `NewHandler` → `http.ListenAndServe(":8080", handler)`
 - **完成**：`go build` 产出单二进制，`./search-router` 启动可响应 `/search`
 
 ## T9 验收测试

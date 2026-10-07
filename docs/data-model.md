@@ -69,7 +69,6 @@ type KeyRuntime struct {
     DayStamp            string      // UTC 日期 "2006-01-02"
     MonthStamp          string      // UTC 月份 "2006-01"
     CooldownUntil       time.Time
-    ConsecutiveFailures int
     LastError           string
     LastErrorKind       ErrorKind
 }

@@ -78,9 +78,11 @@ stateDiagram-v2
 - 因**日/月**配额耗尽而 `quarantined` 的 key，到对应 UTC 日/月边界自动回到 `active`（总配额除外，永久）
 - reset 是**惰性**的：在 `Acquire()`/`HasCapacity()` 时检查时间戳并刷新，不需要后台定时器
 
+> 配额耗尽有两层：① **本地主动**——keypool 在 `refresh()` 里 `UsedX ≥ quotaX` 直接置 `quarantined`（不发请求）；② **上游被动**——adapter 把上游配额错误归类为 `keyQuotaExhausted`，router `ReportFailure` 后置 `quarantined`。两层语义一致。
+
 ## 超时
 
-每 provider 可配 `Timeout`，用 `context.WithTimeout` 实现；超时视为 `providerUnavailable`（不惩罚 key）。
+每 provider 可配 `Timeout`，由 **router** 在调用 `adapter.Search` 前用 `context.WithTimeout(ctx, ProviderConfig.Timeout)` 包裹；超时视为 `providerUnavailable`（不惩罚 key）。
 
 ## 重启 / 持久化
 

@@ -98,11 +98,16 @@ type Provider interface {
 ```go
 var ErrNoKeyAvailable = errors.New("no key available")
 
+// PoolOptions：key 池全局参数（缺省 RateLimitCooldown=1s）
+type PoolOptions struct {
+    RateLimitCooldown time.Duration // 429 无 Retry-After 时的默认冷却
+}
+
 type Pool struct { /* 内部含 sync.Mutex 保护共享态 */ }
 func NewPool(keys []model.KeyConfig, opts PoolOptions) *Pool
 
 func (p *Pool) Acquire() (model.Key, error)                       // 无可用 key 返回 ErrNoKeyAvailable
-func (p *Pool) ReportSuccess(id string)                            // 清连续失败
+func (p *Pool) ReportSuccess(id string)                            // 清 LastError / LastErrorKind
 func (p *Pool) ReportFailure(id string, err *model.ProviderError)  // 按 err.Kind 置 state
 func (p *Pool) HasCapacity() bool                                  // 是否至少一个 key 可发
 ```
@@ -110,6 +115,12 @@ func (p *Pool) HasCapacity() bool                                  // 是否至�
 ### `breaker.Breaker`
 
 ```go
+// BreakerOptions：熔断参数（缺省 Threshold=3、Cooldown=5m）
+type BreakerOptions struct {
+    Threshold int           // 连续失败达此值即 open
+    Cooldown  time.Duration // open 冷却时长，期满进 half-open
+}
+
 type Breaker struct { /* ... */ }
 func NewBreaker(opts BreakerOptions) *Breaker
 
