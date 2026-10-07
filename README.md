@@ -95,6 +95,71 @@ providers:
 - `qps` 必须 `> 0`；`mode` ∈ `{split, failover}`；`contentType` ∈ `{abstract, body}`
 - `dailyQuota` / `monthlyQuota` / `totalQuota` 均可省略或置 `null`（表示不限）
 
+## 后台运行
+
+### nohup（Linux / macOS 通用，临时后台）
+
+```bash
+nohup ./search-router > search-router.log 2>&1 &
+tail -f search-router.log                # 看日志
+kill $(pgrep -f search-router)           # 停止
+```
+
+在项目根目录（`config.yaml` 所在处）执行；或显式指定配置路径：`SEARCH_ROUTER_CONFIG=/path/to/config.yaml`。
+
+### macOS：launchd（常驻 + 开机自启 + 自动重启）
+
+写 `~/Library/LaunchAgents/com.example.search-router.plist`：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.search-router</string>
+  <key>ProgramArguments</key><array><string>/path/to/search-router</string></array>
+  <key>WorkingDirectory</key><string>/path/to/project</string>
+  <key>StandardOutPath</key><string>/tmp/search-router.log</string>
+  <key>StandardErrorPath</key><string>/tmp/search-router.err</string>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.example.search-router.plist   # 注册并启动
+launchctl stop com.example.search-router                               # 停止
+launchctl unload ~/Library/LaunchAgents/com.example.search-router.plist # 注销
+```
+
+### Linux：systemd（常驻 + 开机自启 + 自动重启）
+
+写 `/etc/systemd/system/search-router.service`：
+
+```ini
+[Unit]
+Description=search-router
+After=network-online.target
+
+[Service]
+WorkingDirectory=/path/to/project
+ExecStart=/path/to/search-router
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now search-router   # 开机自启并立即启动
+journalctl -u search-router -f              # 看日志
+sudo systemctl stop search-router           # 停止
+```
+
+> 常驻服务（launchd / systemd）不继承 shell 的工作目录，务必把 `WorkingDirectory` 指到 `config.yaml` 所在目录；或用 `Environment`（systemd）/ `EnvironmentVariables`（launchd）设 `SEARCH_ROUTER_CONFIG` 为绝对路径。
+
 ## HTTP API
 
 ### `POST /search`
