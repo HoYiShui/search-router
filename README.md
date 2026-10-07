@@ -2,24 +2,22 @@
 
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](./go.mod)
 
-> 面向 AI Agent 的自托管搜索容灾网关
+> Go 单二进制搜索网关：聚合多个搜索 API，按配额与限速**主动**分流。
 >
-> **One protocol. Multiple search providers. Automatic key rotation and failover.**
+> **Route to the provider that still has capacity — before you send, not after a 429.**
 
-search-router 把 Serper、Tavily、Brave、Bright Data 等搜索 API 统一成一个协议，并集中处理 API Key 轮换、限流、配额、供应商故障切换和熔断。
+search-router 把 Serper、Tavily、Brave、Bright Data 收进一个 `POST /search`。与传统「失败才切换」不同，它在发请求之前就根据每个 Key 的令牌桶和日 / 月 / 总配额，把流量导向还有余量的供应商；Key 失效、限流、配额耗尽时自动换 Key，供应商故障或超时时自动熔断切换。
 
-它适合需要稳定联网搜索能力的 **AI Agent、RAG 应用和内部自动化服务**。编译成单二进制、单进程，密钥和调用状态都留在自己的机器上。
+编译成单二进制、单进程，密钥留在自己的机器上，适合给 AI Agent、RAG 或内部自动化服务提供稳定的联网搜索。
 
 ## 为什么用 search-router？
 
-单个搜索供应商出问题时，Agent 不应该直接失明：
+对外只一个接口，背后是多家供应商和多把 Key 的容灾：
 
-- 一个 Key 失效或被限流：自动换下一个 Key
-- 一个供应商故障或超时：自动切换供应商
-- 连续失败：熔断，冷却后半开探测
-- 每个 Key 独立设置 QPS、日 / 月 / 总配额
-- **主动分流**：发送前就判断配额与限速，饱和的 provider 在发请求前掉出候选，不用等 429 才切换
-- 单二进制、单进程、无运行时依赖，密钥不离开自己的机器
+- **主动分流**：发请求前就按令牌桶和配额过滤掉饱和的供应商，流量只落在还有余量的人身上
+- **先换 Key、再换供应商**：Key 失效/限流/配额耗尽时，在同供应商内换下一把 Key（上界 `maxKeyAttempts`）；供应商 5xx/超时才切换，并累计熔断
+- **逐 Key 限速 + 三级配额**：QPS、日 / 月 / 总配额，到 UTC 边界自动 reset
+- **单二进制零依赖**：一个文件跑起来，密钥和状态不离开机器
 
 ## 核心概念
 
