@@ -30,6 +30,7 @@ type ProviderConfig struct {
     MaxKeyAttempts int           `yaml:"maxKeyAttempts"` // 同 provider 内最多尝试的 key 数（含第一个），缺省 3
     Capabilities   []string      `yaml:"capabilities"`   // 软能力（含 page）：timeRange/site/country/lang/page/safeSearch
     ContentType    string        `yaml:"contentType"`    // 硬能力："abstract" | "body"
+    Zone           string        `yaml:"zone,omitempty"` // Bright Data SERP 的 zone（仅 brightdata 用，其他 provider 忽略）
     Keys           []KeyConfig   `yaml:"keys"`
 }
 
@@ -221,5 +222,5 @@ erDiagram
 - KeyConfig **1 — 1** KeyRuntime
 - `QPS > 0`；三类配额为 `nil` 表示不限；`Weight`/`Priority` 只在其对应模式下生效。
 - 硬能力约束：请求 `Content == ContentBody` 时，router 排除 `ContentType() == ContentTypeAbstract` 的 provider（硬过滤，非降级）。
-- 各家 `ContentType` 映射：Tavily → `"body"`；Serper / Brave → `"abstract"`。
+- 各家 `ContentType` 映射：Tavily → `"body"`；Serper / Brave / Bright Data → `"abstract"`。
 - `Degraded` 语义：换过 key 或 provider 即为 true。`SwitchedFrom` 仅在**跨 provider** 降级时填充（= 最初选中的 provider id）；只换 key（同 provider）时 `SwitchedFrom` 留空。

@@ -20,7 +20,7 @@
 | `router` | 跨 provider 主动分流：资格 + 权重选出目标 provider（**核心差异化**） |
 | `keypool` | 单个 provider 的 key 池：轮询 + 令牌桶(QPS) + 配额(日/月/总) + 冷却状态机 |
 | `breaker` | provider 级熔断 |
-| `providers/{serper,tavily,brave}` | 各家 API 的 adapter：实现 `Provider` 接口，翻译成统一 schema |
+| `providers/{serper,tavily,brave,brightdata}` | 各家 API 的 adapter：实现 `Provider` 接口，翻译成统一 schema |
 | `config` | 加载 yaml 到 `model.Config`（env 仅指定配置文件路径） |
 | `model` | 共享类型 + 错误定义（被所有包依赖，无环） |
 
@@ -35,7 +35,7 @@ search-router/
     ├── router/
     ├── keypool/
     ├── breaker/
-    ├── providers/{serper,tavily,brave}/
+    ├── providers/{serper,tavily,brave,brightdata}/
     ├── config/
     └── model/
 ```

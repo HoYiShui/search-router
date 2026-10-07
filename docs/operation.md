@@ -105,7 +105,7 @@ stateDiagram-v2
 | A3 | `content=body` 时排除 `contentType=abstract` 的 provider | 单测：断言候选过滤结果 |
 | A4 | keyInvalid/keyRateLimited/keyQuotaExhausted → 换 key，且尝试的 key 数 ≤ MaxKeyAttempts（含第一个） | 单测：mock adapter 依次抛 3 种 key 错误，断言尝试 key 数 ≤ 上限 |
 | A5 | providerUnavailable → 换 provider；badRequest → 不重试直接返回 | 单测：断言降级路径与 `Attempt` 记录 |
-| A6 | 熔断：连续失败≥阈值 → open；冷却 → half-open；探测成功 → closed | 单测：驱动状态机，断言 `Allow()` |
+| A6 | 熔断：连续失败≥阈值 → open；冷却 → half-open；探测成功 → closed；探测失败 → open | 单测：驱动状态机，断言 `Allow()` |
 | A7 | key 状态机：429→cooling、401/403→quarantined（永久）、日/月配额→quarantined→到边界回 active、总配额→永久、cooling 到期→active | 单测：注入可控时钟，断言状态转移 |
 | A8 | 配额 reset：日/月清零、总配额不自动恢复 | 单测：跨 UTC 日/月边界断言 |
 | A9 | 全部失败 → `AllProvidersFailedError` → HTTP 502；badRequest → 400 | 集成测：断言 HTTP 状态码 |

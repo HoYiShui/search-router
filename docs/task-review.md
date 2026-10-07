@@ -126,3 +126,103 @@ tasks.md 的**编排是正确的**：
 经核对本会话操作历史：`operation.md:78`（日/月配额）与转移表「重启进程」行的修改，**实际发生在响应 design-review §八（R3-1/R3-2）的那一轮**——当轮已用 grep 验证「因配额耗尽」无残留、转移表补第 7 行。故 §六 #6 的原始归因「该处已在 R3-1 改」是**准确的**；§七 所称「本轮修复、非审阅方误报」的时间线判定有误。
 
 需澄清的边界：R3-1/R3-2 **本身是真实发现**（round-3 时 operation.md:77 确为旧表述），非误报；只是修复发生在 R3 响应轮、而非 task-review 轮。这是时间线元数据之争，**不影响文档实质正确性**（operation.md 当前已正确）。
+
+---
+
+## 九、可执行验收条件审查
+
+> 复核日期：2026-10-07。审查对象：`tasks.md` 新增的「总验收 gate」与各 task 的「完成」条件（已从模糊表述升级为具体命令 + 覆盖清单）。
+
+### 前置核对
+
+`tasks.md` 新出现的 `Zone`（T1）与 `brightdata`（T5）**并非悬空**——设计文档本轮已同步：`data-model.md:33` 加 `Zone`、`architecture.md:23/38` 加 `brightdata`、`api-contract.md:80-89` 补 brightdata 上游契约、`data-model.md:225` 的 ContentType 映射同步为「Serper / Brave / Bright Data → abstract」。此层无漂移。
+
+### 总体评价
+
+方向对、是实质升级：从「完成：mock adapter 单测覆盖…」变为「`go test ./internal/X/` + 具体覆盖项」。验收目的（每个 task 有明确"什么算做完"信号）**基本能达成**，A1–A10 覆盖完整。
+
+但按「可执行 + 能达成验收」两个标准，有几处需在开工前补，否则会出现「功能写完、验收测试写不出来/写不稳」。
+
+### 中 —— 非密闭验收混进硬门槛
+
+| # | 位置 | 问题 |
+|---|---|---|
+| 1 | `tasks.md` gate #3（:13）/ #4（:14）、T8（:96） | `curl localhost:8080/search`、并发打满 QPS 分流，都依赖**真实 config.yaml（真 key）+ 真网络 + 上游在线**，非密闭。与 gate #1/#2（build/test，可进 CI）混在「硬门槛」里。建议拆成「自动化门槛」（build/vet/test 全绿）与「人工冒烟」（真 key，发布前跑一次），否则无真 key 的环境（CI/交接）会卡 gate。 |
+
+### 轻 —— 测试可行性有坑
+
+| # | 位置 | 问题 |
+|---|---|---|
+| 2 | T7 + `api-contract.md:159` | **502/400 测试难注入**：`NewHandler(rt *router.Router)` 收具体类型 `*router.Router` 而非接口。要测 `AllProvidersFailedError→502` 就得构造"全部 provider 失败"的真实 router，把 T7 测试退化成集成测试、模糊 T6/T7 边界。建议 `NewHandler` 收窄接口（如 `Searcher interface{ Search(ctx, req) (*SearchResponse, error) }`）。 |
+| 3 | T2（:50 vs :48） | 完成条件写「含解析 `config.example.yaml` 成功」，但 `config.example.yaml` **不在 T2 产出列表**。需补进产出。 |
+| 4 | T6（:82） | 「SWRR 权重分布」是**统计断言**，未写样本量/容差，易写成 flaky 测试（如 10 次请求断言精确 50/50）。建议注明「足够样本 + 容差（±5%）」。 |
+| 5 | T3/T4（:58/:66） | 「假时钟注入」依赖时钟抽象，但 `BreakerOptions`/`PoolOptions` **未暴露 clock 字段**。同包测试可访问 unexported 字段兜底，但完成条件提了"假时钟"却无对应接口。 |
+| 6 | T1（:43）、T9（:102） | 「字段名逐字一致」「测试名可追溯 A 编号」是**人工检查**，非可执行命令。本身合理，但应标注为「人工 gate」，与 `go build/test` 的机器 gate 分开。 |
+
+### 极轻
+
+- T3 完成条件写「`closed→open→half-open→closed` 全转移」，**漏了 `half-open → open`（探测失败）**这一支。这与 A6 自身的遗漏一致（A6 也只写了探测成功），但既然 T3 写"全转移"，就该补失败支——否则熔断器最关键的"半开探测失败回 open"未被测到。
+
+### 结论
+
+- **验收目的：基本能达成**，A1–A10 覆盖完整。
+- **但"可执行"有 1 中 + 5 轻**，核心是两个：① 非密闭冒烟混进硬门槛（gate #3/#4、T8）；② T7 的 502/400 因 `NewHandler` 收具体类型而难以注入测试。
+- 建议开工前补：拆 gate（自动化/人工分层）、`NewHandler` 接口化、`config.example.yaml` 入产出、SWRR 容差、时钟抽象、T3 补探测失败支。
+
+---
+
+## 十、修订记录（响应 §九 可执行验收审查）
+
+> 修订日期：2026-10-07。
+
+### 中
+
+| 项 | 决策 | 位置 |
+|---|---|---|
+| 非密闭冒烟混进硬门槛 | 总验收拆两档：自动化门槛（build/vet/test）+ 人工冒烟（真 key 发布前跑）；T8 完成改指向人工冒烟 | `tasks.md` 总验收 + T8 |
+
+### 轻
+
+| 项 | 决策 | 位置 |
+|---|---|---|
+| T7 502/400 难注入 | `NewHandler` 改收窄接口 `Searcher{Search(ctx,req)}`，`*router.Router` 自然满足，T7 注入 fake | `api-contract.md` server + `tasks.md` T7 |
+| T2 config.example.yaml 不在产出 | 补进 T2 产出（作为 Load 解析验证目标） | `tasks.md` T2 |
+| SWRR 权重分布无容差 | 注明「足够样本 ≥1000 次 + 容差 ±5%」 | `tasks.md` T6 |
+| 假时钟无抽象 | 定「包内 `var now = time.Now`，同包测试覆盖」 | `tasks.md` T3/T4 |
+| T1/T9 人工检查未分层 | 归入总验收「人工检查项」注，与机器 gate 分开 | `tasks.md` 总验收 |
+
+### 极轻
+
+| 项 | 决策 | 位置 |
+|---|---|---|
+| T3 漏 half-open→open | 补「探测失败→open」支，并同步修 A6 | `tasks.md` T3 + `operation.md` A6 |
+
+### 结论
+
+§九 1 中 + 5 轻 + 1 极轻全部收敛。验收门槛分自动化/人工两档，T7 可注入测试，各任务完成条件密闭可执行。
+
+---
+
+## 十一、§十 修复核验
+
+> 复核日期：2026-10-07。逐条核对 §十 声称的 7 项修复是否真实落地、是否引入新不一致。
+
+| # | 项 | 核验 |
+|---|---|---|
+| 1 | 非密闭冒烟拆两档 | ✓ `tasks.md` 总验收已拆「自动化门槛」（build/vet/test）+「人工冒烟」（curl/QPS）+「人工检查项」注 |
+| 2 | NewHandler 接口化 | ✓ `api-contract.md:171-175` 定义 `Searcher` 接口 + `NewHandler(s Searcher)`；`*router.Router.Search` 结构满足；`tasks.md` T7 注入 fake |
+| 3 | config.example.yaml 入产出 | ✓ `tasks.md` T2 产出含 `config.example.yaml` |
+| 4 | SWRR 容差 | ✓ `tasks.md` T6「足够样本 ≥1000 次 + 容差 ±5%」 |
+| 5 | 假时钟抽象 | ✓ `tasks.md` T3/T4「包内 `var now = time.Now`，同包测试覆盖」 |
+| 6 | 人工检查分层 | ✓ `tasks.md` 总验收「人工检查项（不阻塞 CI）」注 |
+| 7 | T3 补探测失败支 | ✓ `tasks.md` T3「及 `half-open→open`（探测失败）」+ `operation.md` A6 补「探测失败 → open」 |
+
+### 一致性复核
+
+- `Searcher` 接口签名与 `*router.Router.Search` 完全一致（`api-contract.md:157` vs `:171-172`），结构满足，无新悬空。
+- T8 的 curl 已从「完成」移除、指向总验收「人工冒烟 #4」，无重复。
+- 未发现新引入的不一致。
+
+### 结论
+
+§十 的 7 项修复**全部真实落地**，无新问题。验收门槛已密闭/人工分层，T7 可注入测试。tasks.md 现可作为开工的可靠依据，验收链（A1–A10 + 总验收两档）闭合。

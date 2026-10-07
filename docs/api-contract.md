@@ -77,6 +77,17 @@ HTTP 错误码：全部 provider 失败（`AllProvidersFailedError`）→ **502*
 - 响应 → `SearchResult`：`web.results[]` → results；`title→Title`、`url→URL`、`description→Content`、`age→PublishedDate`
 - `ContentType()`：`"abstract"`（无 `score`）
 
+### brightdata（Bright Data SERP API）
+
+- Endpoint：`POST https://api.brightdata.com/request`
+- 鉴权：Header `Authorization: Bearer <token>` + `Content-Type: application/json`
+- 请求体：`{ "zone": <ProviderConfig.Zone>, "url": <构造的 SERP URL>, "format": "json", "data_format": "parsed" }`（`data_format` 可用 `parsed_light` 只取 top10 organic）
+- 请求映射：adapter 自己拼 `https://www.google.com/search?…`——`Query→q`、`Page→start`、`Country→gl`、`Lang→hl`、`TimeRange→tbs`
+- 响应 → `SearchResult`：`organic[]` → results；`title→Title`、`link→URL`、`description/snippet→Content`
+- `ContentType()`：`"abstract"`（无 `score`）
+
+> 注意：brightdata 的请求模型是「构造 SERP URL → 代理抓取」，与 serper/tavily/brave 的「直接 query API」不同，且需额外配置 `zone`（见 `data-model.md` ProviderConfig.Zone）。
+
 ## 内部接口
 
 ### `providers.Provider`（adapter 契约）
@@ -156,7 +167,12 @@ func Load(path string) (*model.Config, error) // 读 yaml，校验 qps>0 等约�
 ### `server`
 
 ```go
-func NewHandler(rt *router.Router) http.Handler // 绑定 POST /search，JSON 编解码 + 错误码映射（502/400）
+// Searcher 是 server 依赖的窄接口，*router.Router 自然满足；便于 T7 单测注入 fake
+type Searcher interface {
+    Search(ctx context.Context, req model.SearchRequest) (*model.SearchResponse, error)
+}
+
+func NewHandler(s Searcher) http.Handler // 绑定 POST /search，JSON 编解码 + 错误码映射（502/400）
 ```
 
 > 约定：所有上游错误以 `model.ProviderError` 表达，`Kind` 取值见 `operation.md`；`model` 包被所有包依赖（无环）。
