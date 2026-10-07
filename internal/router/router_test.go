@@ -115,6 +115,32 @@ func TestA2_SaturatedProviderSkipped(t *testing.T) {
 	}
 }
 
+func TestA2_QuotaExhaustedProviderSkipped(t *testing.T) {
+	// provider "a" 的 key 总配额=1：首次成功后耗尽，再次搜索应被跳过。
+	quota := 1
+	keyA := model.KeyConfig{ID: "a1", Enabled: true, QPS: 100000, TotalQuota: &quota}
+	entryA := newMock("a", model.ContentTypeAbstract, nil, []model.KeyConfig{keyA}, nil)
+	entryB := newMock("b", model.ContentTypeAbstract, nil, []model.KeyConfig{k("b1", 100000)}, nil)
+	r := NewRouter([]ProviderEntry{entryA, entryB}, model.ModeSplit)
+
+	resp1, err := r.Search(context.Background(), model.SearchRequest{Query: "q"})
+	if err != nil {
+		t.Fatalf("first search: %v", err)
+	}
+	if resp1.Meta.Provider != "a" {
+		t.Fatalf("first pick: got %q want a (SWRR 应先选首个)", resp1.Meta.Provider)
+	}
+
+	// a 的 UsedTotal 已达配额 → 第二次搜索跳过 a，改走 b。
+	resp2, err := r.Search(context.Background(), model.SearchRequest{Query: "q"})
+	if err != nil {
+		t.Fatalf("second search: %v", err)
+	}
+	if resp2.Meta.Provider != "b" {
+		t.Fatalf("配额耗尽的 provider 应被跳过，got %q", resp2.Meta.Provider)
+	}
+}
+
 func TestA3_ContentBodyFilter(t *testing.T) {
 	entries := []ProviderEntry{
 		newMock("abstractP", model.ContentTypeAbstract, nil, []model.KeyConfig{k("p1", 100000)}, nil),
