@@ -16,6 +16,12 @@ type RoutingConfig struct {
 	Mode string `yaml:"mode"` // "split" | "failover"，缺省 "split"
 }
 
+// Routing mode 取值
+const (
+	ModeSplit    = "split"
+	ModeFailover = "failover"
+)
+
 type ProviderConfig struct {
 	ID             string        `yaml:"id"`
 	Enabled        bool          `yaml:"enabled"`
@@ -114,10 +120,10 @@ type SearchRequest struct {
 
 type SearchResult struct {
 	Title         string   `json:"title"`
-	URL           string   `json:"url"`         // 用于引用 / 二次取全文
-	Content       string   `json:"content"`     // 正文或摘要
-	ContentType   string   `json:"contentType"` // "abstract" | "body"
-	Score         *float64 `json:"score,omitempty"`         // 仅部分 provider 有，不跨 provider 归一
+	URL           string   `json:"url"`             // 用于引用 / 二次取全文
+	Content       string   `json:"content"`         // 正文或摘要
+	ContentType   string   `json:"contentType"`     // "abstract" | "body"
+	Score         *float64 `json:"score,omitempty"` // 仅部分 provider 有，不跨 provider 归一
 	PublishedDate *string  `json:"publishedDate,omitempty"`
 }
 
@@ -127,8 +133,8 @@ type SearchResponse struct {
 }
 
 type Meta struct {
-	Provider      string    `json:"provider"`                // 实际回答的 provider
-	KeyID         string    `json:"keyId"`                   // 实际使用的 key
+	Provider      string    `json:"provider"` // 实际回答的 provider
+	KeyID         string    `json:"keyId"`    // 实际使用的 key
 	TookMs        int64     `json:"tookMs"`
 	Degraded      bool      `json:"degraded"`                // 是否发生降级（换过 key 或 provider）
 	SwitchedFrom  string    `json:"switchedFrom,omitempty"`  // 最初选中的 provider；仅当跨 provider 降级时填充

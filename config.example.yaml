@@ -1,0 +1,88 @@
+# search-router 配置模板
+#
+# 用法：
+#   1. 复制为 config.yaml：   cp config.example.yaml config.yaml
+#   2. 把各 provider 的 value 换成你的真实 API key。
+#   3. config.yaml 已在 .gitignore 中，不会被提交。
+#
+# 启动（config.yaml 是缺省路径，可省略 env）：
+#   ./search-router
+# 或显式指定：
+#   SEARCH_ROUTER_CONFIG=./config.yaml ./search-router
+
+routing:
+  mode: split          # split | failover，缺省 split
+
+providers:
+  # ---- Serper（Google SERP，只给摘要 contentType=abstract）----
+  - id: serper
+    enabled: true          # 注意：缺省为 false，必须显式 true
+    weight: 1              # split 模式流量份额（不是质量！要全文请在请求里加 content: body 过滤，而不是降权重）
+    priority: 1            # failover 模式排序（当前用 split，此值不生效）
+    timeout: 10s
+    maxKeyAttempts: 3      # 同 provider 内最多尝试几个 key（含第一个）
+    contentType: abstract
+    capabilities: [page, country, lang, timeRange]   # 软能力：本 provider 支持的参数
+    keys:
+      - id: serper-k1
+        label: 主 key
+        value: "在这里填 Serper 的 API key"
+        enabled: true
+        qps: 5              # 每秒上限
+        totalQuota: 2500    # Serper 免费额度是一次性 2500（无月度重置）
+
+  # ---- Tavily（AI 搜索，给全文 contentType=body）----
+  - id: tavily
+    enabled: true
+    weight: 1
+    priority: 2
+    timeout: 10s
+    maxKeyAttempts: 3
+    contentType: body
+    capabilities: [timeRange]   # tavily 无翻页，不支持 page
+    keys:
+      - id: tavily-k1
+        label: 主 key
+        value: "在这里填 Tavily 的 API key"
+        enabled: true
+        qps: 5
+        monthlyQuota: 1000   # tavily 免费月额度 1000（按你的实际套餐调整）
+
+  # ---- Brave Search（只给摘要 contentType=abstract）----
+  - id: brave
+    enabled: true
+    weight: 1
+    priority: 3
+    timeout: 10s
+    maxKeyAttempts: 3
+    contentType: abstract
+    capabilities: [page, country, safeSearch]
+    keys:
+      - id: brave-k1
+        label: 主 key
+        value: "在这里填 Brave 的 API key"
+        enabled: true
+        qps: 5
+        monthlyQuota: 2000   # Brave 免费月额度约 2000（按你的实际套餐调整）
+
+  # ---- Bright Data SERP API（raw SERP，只给摘要 contentType=abstract）----
+  - id: brightdata
+    enabled: true
+    weight: 1
+    priority: 4
+    timeout: 15s
+    maxKeyAttempts: 3
+    contentType: abstract
+    zone: ""               # Bright Data 的 SERP zone 名（后台创建，必填）
+    capabilities: [page, country, lang, timeRange]
+    keys:
+      - id: brightdata-k1
+        label: 主 key
+        value: "在这里填 Bright Data 的 API token"
+        enabled: true
+        qps: 10
+        monthlyQuota: 5000   # Bright Data 免费 5000 次/月（1 请求 = 1 credit）
+
+# 说明：
+# - dailyQuota / monthlyQuota / totalQuota 三个字段均可省略或置 null，表示「不限」。
+# - 免费额度会变动，上面的 2500/1000/2000 只是参考，按你注册时看到的实际额度填。

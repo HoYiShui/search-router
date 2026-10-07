@@ -4,3 +4,5 @@
 *.log
 *.swp
 *.swo
+config.yaml
+/search-router
