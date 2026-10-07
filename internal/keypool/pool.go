@@ -165,7 +165,13 @@ func (p *Pool) ReportFailure(id string, err *model.ProviderError) {
 		k.qreason = qrPermanent
 	case model.KindKeyQuotaExhausted:
 		k.rt.State = model.KeyQuarantined
-		k.qreason = qrMonthly // 上游被动配额耗尽：隔离到下一 reset 边界
+		if k.cfg.TotalQuota != nil {
+			// 配置了总配额：上游被动耗尽大概率是一次性总配额 → 永久隔离，
+			// 避免到月边界错误恢复后反复重试一个死 key。
+			k.qreason = qrPermanent
+		} else {
+			k.qreason = qrMonthly // 无总配额：隔离到下一 reset 边界
+		}
 	}
 }
 

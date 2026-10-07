@@ -283,6 +283,13 @@ func TestA5_CircuitOpen_Recorded(t *testing.T) {
 	if len(resp.Meta.Attempts) < 2 || resp.Meta.Attempts[0].Code != "circuit_open" {
 		t.Fatalf("应记录 circuit_open attempt: %+v", resp.Meta.Attempts)
 	}
+	// 熔断跳过不是「降级」：a 从未被选中，switchedFrom 不应被 circuit_open 污染。
+	if resp.Meta.SwitchedFrom != "" {
+		t.Fatalf("switchedFrom: got %q want empty (a 只是熔断跳过)", resp.Meta.SwitchedFrom)
+	}
+	if resp.Meta.Degraded {
+		t.Fatal("熔断跳过不应计为 degraded")
+	}
 }
 
 func TestA5_MetaConstruction(t *testing.T) {

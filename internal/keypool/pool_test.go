@@ -245,3 +245,21 @@ func TestA8_Quota_PassiveExhausted(t *testing.T) {
 		t.Fatalf("被动配额耗尽到月边界应回 active: %v", err)
 	}
 }
+
+func TestA8_Quota_PassiveExhausted_TotalPermanent(t *testing.T) {
+	cur := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	useFakeClock(t, &cur)
+
+	p := NewPool([]model.KeyConfig{
+		oneKey("k1", 100, func(k *model.KeyConfig) { k.TotalQuota = intPtr(100) }),
+	}, PoolOptions{})
+
+	k, _ := p.Acquire()
+	p.ReportFailure(k.ID, &model.ProviderError{Kind: model.KindKeyQuotaExhausted})
+
+	// 配置了 TotalQuota → 上游被动耗尽视为永久，跨月也不回 active。
+	cur = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := p.Acquire(); err != ErrNoKeyAvailable {
+		t.Fatalf("配置 TotalQuota 的被动耗尽应永久隔离，got %v", err)
+	}
+}

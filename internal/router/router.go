@@ -211,16 +211,31 @@ func (r *Router) tryProvider(ctx context.Context, req model.SearchRequest, entry
 func (r *Router) buildResponse(entry *ProviderEntry, results []model.SearchResult, req model.SearchRequest, attempts []model.Attempt, start time.Time) *model.SearchResponse {
 	last := attempts[len(attempts)-1]
 
+	// circuit_open 是「熔断中跳过、根本没被选中」的记录，不算真正尝试；
+	// 降级（Degraded）与 switchedFrom 只基于真正被选中的 attempt。
+	var firstSelected *model.Attempt
+	realCount := 0
+	for i := range attempts {
+		a := &attempts[i]
+		if a.Code == "circuit_open" {
+			continue
+		}
+		realCount++
+		if firstSelected == nil {
+			firstSelected = a
+		}
+	}
+
 	switchedFrom := ""
-	if len(attempts) >= 2 && attempts[0].Provider != last.Provider {
-		switchedFrom = attempts[0].Provider
+	if firstSelected != nil && firstSelected.Provider != last.Provider {
+		switchedFrom = firstSelected.Provider
 	}
 
 	meta := model.Meta{
 		Provider:      last.Provider,
 		KeyID:         last.KeyID,
 		TookMs:        time.Since(start).Milliseconds(),
-		Degraded:      len(attempts) > 1,
+		Degraded:      realCount >= 2,
 		SwitchedFrom:  switchedFrom,
 		IgnoredParams: ignoredParamsForProvider(entry.Adapter.Capabilities(), req),
 		Attempts:      attempts,
