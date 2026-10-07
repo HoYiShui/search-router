@@ -33,7 +33,7 @@ search-router 把 Serper、Tavily、Brave、Bright Data 收进一个 `POST /sear
 | `split`（缺省） | 平滑加权轮询（SWRR），按 `weight` 分流；低并发下自然退化为「首选最高权重」 |
 | `failover` | 按 `priority` 排序串行试，饱和才换下一家 |
 
-## 30 秒启动
+## 快速启动
 
 ```bash
 go build -o search-router ./cmd/search-router
@@ -51,7 +51,7 @@ search-router listening on :8080 (mode=split, providers=4)
 ```bash
 curl -X POST http://localhost:8080/search \
   -H 'Content-Type: application/json' \
-  -d '{"query":"insider threat detection CERT r4.2 to r6.2 transfer learning"}'
+  -d '{"query":"golang"}'
 ```
 
 默认读 `./config.yaml`；换路径用环境变量 `SEARCH_ROUTER_CONFIG`：
